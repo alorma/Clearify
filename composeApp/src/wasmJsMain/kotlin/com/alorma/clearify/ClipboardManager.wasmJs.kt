@@ -2,9 +2,8 @@ package com.alorma.clearify
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
-import kotlin.coroutines.suspendCoroutine
+import kotlinx.coroutines.await
+import kotlin.js.Promise
 
 class WasmJsClipboardManager : ClipboardManager {
     override suspend fun copyToClipboard(text: String) {
@@ -17,10 +16,11 @@ actual fun rememberClipboardManager(): ClipboardManager {
     return remember { WasmJsClipboardManager() }
 }
 
-private suspend fun copyToClipboardExternal(text: String) = suspendCoroutine<Unit> { cont ->
-    try {
-        js("navigator.clipboard.writeText(text).then(() => cont.resume(kotlin.Unit)).catch((e) => cont.resumeWithException(new Error(e)))")
-    } catch (e: Throwable) {
-        cont.resumeWithException(e)
-    }
+@OptIn(ExperimentalWasmJsInterop::class)
+@JsFun("(text) => navigator.clipboard.writeText(text)")
+private external fun jsWriteText(text: String): Promise<JsAny?>
+
+@OptIn(ExperimentalWasmJsInterop::class)
+private suspend fun copyToClipboardExternal(text: String) {
+    jsWriteText(text).await<JsAny?>()
 }
