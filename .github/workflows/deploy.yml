@@ -1,0 +1,61 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Build WASM
+        run: ./gradlew :composeApp:wasmJsBrowserDistribution
+
+      - name: Prepare deployment directory
+        run: |
+          mkdir -p dist
+          cp composeApp/build/processedResources/wasmJs/main/index.html dist/
+          cp composeApp/build/processedResources/wasmJs/main/styles.css dist/ || true
+          cp -r composeApp/build/processedResources/wasmJs/main/composeResources dist/ || true
+          cp -r composeApp/build/compileSync/wasmJs/main/productionExecutable/kotlin/* dist/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: './dist'
+
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
